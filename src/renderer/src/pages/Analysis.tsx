@@ -81,7 +81,7 @@ const Analysis: React.FC = () => {
   const [indicators, setIndicators] = useState<TechnicalIndicators | null>(null);
   const [loading, setLoading] = useState(false);
   const [timeframe, setTimeframe] = useState('1h');
-  const [analysisMode, setAnalysisMode] = useState<'technical' | 'risk' | 'signals' | 'multi' | 'advanced'>('technical');
+  const [analysisMode, setAnalysisMode] = useState<'technical' | 'risk' | 'signals' | 'divergence' | 'multi' | 'advanced'>('technical');
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'price' | 'change' | 'volume'>('change');
   const [chartData, setChartData] = useState<any>(null);
@@ -493,6 +493,7 @@ const Analysis: React.FC = () => {
     { value: 'technical', label: 'Teknik Analiz', icon: ChartBarIcon },
     { value: 'risk', label: 'Risk Yönetimi', icon: ShieldExclamationIcon },
     { value: 'signals', label: 'Trading Sinyalleri', icon: BoltIcon },
+    { value: 'divergence', label: 'Divergence Analizi', icon: ArrowTrendingUpIcon },
     { value: 'multi', label: 'Çoklu Analiz', icon: EyeIcon },
     { value: 'advanced', label: 'Gelişmiş Analiz', icon: FireIcon },
   ];
@@ -1074,7 +1075,7 @@ const Analysis: React.FC = () => {
           )}
 
           {/* 🆕 Divergence Detection Panel */}
-          {(analysisMode === 'signals' || analysisMode === 'multi' || analysisMode === 'advanced') && divergences.length > 0 && (
+          {(analysisMode === 'divergence' || analysisMode === 'signals' || analysisMode === 'multi' || analysisMode === 'advanced') && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1091,7 +1092,19 @@ const Analysis: React.FC = () => {
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {divergences.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full flex items-center justify-center">
+                    <span className="text-3xl">🔍</span>
+                  </div>
+                  <p className="text-gray-400 text-lg mb-2">Divergence Tespit Edilemedi</p>
+                  <p className="text-gray-500 text-sm max-w-md mx-auto">
+                    Bu coin için mevcut timeframe'de ({timeframe}) herhangi bir RSI veya MACD divergence bulunamadı. 
+                    Farklı bir timeframe veya coin deneyebilirsiniz.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {divergences.slice(0, 6).map((div, index) => (
                   <div
                     key={index}
@@ -1165,14 +1178,15 @@ const Analysis: React.FC = () => {
                     </div>
                   </div>
                 ))}
-              </div>
 
-              {divergences.length > 6 && (
-                <div className="mt-4 text-center">
-                  <p className="text-gray-400 text-sm">
-                    +{divergences.length - 6} daha fazla divergence bulundu
-                  </p>
-                </div>
+                {divergences.length > 6 && (
+                  <div className="mt-4 text-center">
+                    <p className="text-gray-400 text-sm">
+                      +{divergences.length - 6} daha fazla divergence bulundu
+                    </p>
+                  </div>
+                )}
+              </div>
               )}
             </motion.div>
           )}
