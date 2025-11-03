@@ -482,11 +482,21 @@ const Analysis: React.FC = () => {
   };
 
   const timeframes = [
+    { value: '1m', label: '1 Dakika' },
     { value: '5m', label: '5 Dakika' },
     { value: '15m', label: '15 Dakika' },
+    { value: '30m', label: '30 Dakika' },
+    { value: '45m', label: '45 Dakika' },
     { value: '1h', label: '1 Saat' },
+    { value: '2h', label: '2 Saat' },
+    { value: '3h', label: '3 Saat' },
     { value: '4h', label: '4 Saat' },
     { value: '1d', label: '1 Gün' },
+    { value: '2d', label: '2 Gün' },
+    { value: '3d', label: '3 Gün' },
+    { value: '1w', label: '1 Hafta' },
+    { value: '1M', label: '1 Ay' },
+    { value: '3M', label: '3 Ay' },
   ];
 
   const analysisModes = [
@@ -732,14 +742,14 @@ const Analysis: React.FC = () => {
             {/* Timeframe */}
             <div>
               <label className="block text-gray-400 text-sm mb-2">Zaman Dilimi</label>
-              <div className="flex flex-wrap gap-2">
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
                 {timeframes.map((tf) => (
                   <button
                     key={tf.value}
                     onClick={() => setTimeframe(tf.value)}
-                    className={`px-3 py-1 rounded-lg text-sm transition-all ${
+                    className={`px-2 py-1.5 rounded-lg text-xs font-medium transition-all ${
                       timeframe === tf.value
-                        ? 'bg-primary-600 text-white'
+                        ? 'bg-primary-600 text-white ring-2 ring-primary-400'
                         : 'bg-dark-700 text-gray-300 hover:bg-dark-600'
                     }`}
                   >
@@ -1104,8 +1114,9 @@ const Analysis: React.FC = () => {
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {divergences.slice(0, 6).map((div, index) => (
+                <>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {divergences.slice(0, 6).map((div, index) => (
                   <div
                     key={index}
                     className={`p-4 rounded-lg border-2 transition-all hover:scale-[1.02] ${
@@ -1177,16 +1188,17 @@ const Analysis: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                ))}
-
-                {divergences.length > 6 && (
-                  <div className="mt-4 text-center">
-                    <p className="text-gray-400 text-sm">
-                      +{divergences.length - 6} daha fazla divergence bulundu
-                    </p>
+                    ))}
                   </div>
-                )}
-              </div>
+
+                  {divergences.length > 6 && (
+                    <div className="mt-4 text-center">
+                      <p className="text-gray-400 text-sm">
+                        +{divergences.length - 6} daha fazla divergence bulundu
+                      </p>
+                    </div>
+                  )}
+                </>
               )}
             </motion.div>
           )}
