@@ -157,9 +157,7 @@ kripto-trading-app/
 - [ ] API key entegrasyonu (gerçek trading için)
 
 ## Lisans
-
 MIT License
-
 ## Katkıda Bulunma
 
 1. Fork edin
@@ -170,16 +168,11 @@ MIT License
 
 ## Destek
 
-Sorularınız için [GitHub Issues](https://github.com/username/kripto-trading-app/issues) kullanabilirsiniz.
-
----
+Sorularınız için [GitHub Issues](https://github.com/gurcantml-pixel/kripto-trading-app/issues) kullanabilirsiniz.
 
 ⚠️ **Uyarı**: Bu uygulama yalnızca bilgilendirme amaçlıdır. Finansal tavsiye değildir. Trading yaparken riskleri göz önünde bulundurun.
 
----
-
 **⭐ Projeyi beğendiyseniz yıldızlamayı unutmayın!**
 
-```
 🔴 Canlı Veriler  📊 Teknik Analiz  🎯 Otomatik Sinyal  🤖 Trading Bot
 ```
