@@ -1,0 +1,58 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Build outputs
+dist/
+dist-electron/
+out/
+release/
+
+# Environment variables
+.env
+.env.local
+.env.production
+config.json
+
+# API Keys (CRITICAL - Never commit!)
+**/config.json
+src/renderer/src/config.json
+
+# IDE
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Testing
+coverage/
+.nyc_output/
+
+# Electron
+*.exe
+*.dmg
+*.AppImage
+*.deb
+*.rpm
+
+# Temporary
+*.tmp
+*.temp
+.cache/
+
+# electron-builder
+builder-debug.yml
+builder-effective-config.yaml
+win-unpacked/
