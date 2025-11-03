@@ -23,6 +23,7 @@ import { RiskManagement } from '../services/riskManagement';
 import { DataValidation } from '../services/dataValidation';
 import { BacktestEngine } from '../services/backtestEngine';
 import { notificationManager } from '../services/notificationManager';
+import { divergenceDetector, Divergence } from '../services/divergenceDetection';
 import { TechnicalIndicators } from '../types';
 import AdvancedAnalysisPanel from '../components/AdvancedAnalysisPanel';
 import {
@@ -85,6 +86,7 @@ const Analysis: React.FC = () => {
   const [sortBy, setSortBy] = useState<'name' | 'price' | 'change' | 'volume'>('change');
   const [chartData, setChartData] = useState<any>(null);
   const [chartLoading, setChartLoading] = useState(false);
+  const [divergences, setDivergences] = useState<Divergence[]>([]);
   
   // URL'den gelen coin'i hemen set et VE yükle
   React.useEffect(() => {
@@ -358,6 +360,58 @@ const Analysis: React.FC = () => {
           });
         }
         
+        // 🆕 Divergence Detection
+        console.log('🔍 Detecting divergences...');
+        const rsiValues = prices.map((_, i) => {
+          const subset = prices.slice(Math.max(0, i - 14), i + 1);
+          if (subset.length < 14) return undefined;
+          return TechnicalAnalysis.calculateRSI(subset, 14);
+        }).filter((v): v is number => v !== undefined);
+        
+        const macdResults = prices.map((_, i) => {
+          const subset = prices.slice(Math.max(0, i - 26), i + 1);
+          if (subset.length < 26) return undefined;
+          const result = TechnicalAnalysis.calculateMACD(subset);
+          return result !== undefined ? result.histogram : undefined;
+        }).filter((v): v is number => v !== undefined);
+        
+        const detectedDivergences: Divergence[] = [];
+        
+        // RSI Divergences
+        if (rsiValues.length >= 20) {
+          const rsiDivs = divergenceDetector.detectDivergences(
+            prices.slice(-rsiValues.length),
+            rsiValues,
+            'RSI',
+            timeframe
+          );
+          detectedDivergences.push(...rsiDivs);
+        }
+        
+        // MACD Divergences (using histogram)
+        if (macdResults.length >= 20) {
+          const macdDivs = divergenceDetector.detectDivergences(
+            prices.slice(-macdResults.length),
+            macdResults,
+            'MACD',
+            timeframe
+          );
+          detectedDivergences.push(...macdDivs);
+        }
+        
+        setDivergences(detectedDivergences);
+        console.log(`✅ Detected ${detectedDivergences.length} divergences`);
+        
+        if (detectedDivergences.length > 0) {
+          const strongestDiv = detectedDivergences[0];
+          notificationManager.sendTradingSignal({
+            symbol: selectedCoin,
+            type: strongestDiv.type.includes('bullish') ? 'BUY' : 'SELL',
+            confidence: strongestDiv.confidence,
+            reason: `Divergence: ${strongestDiv.description}`
+          });
+        }
+        
         // Chart verilerini hazırla (memoization için stabilize)
         const chartLabels = timestamps.slice(-50);
         const chartPrices = prices.slice(-50);
@@ -388,6 +442,7 @@ const Analysis: React.FC = () => {
         macd: (Math.random() - 0.5) * 100, // Daha küçük MACD değerleri
         volatility: basePrice * (0.015 + Math.random() * 0.025)
       });
+      setDivergences([]); // Clear divergences on error
     } finally {
       setLoading(false);
       setChartLoading(false);
@@ -1015,6 +1070,110 @@ const Analysis: React.FC = () => {
                   </div>
                 );
               })()}
+            </motion.div>
+          )}
+
+          {/* 🆕 Divergence Detection Panel */}
+          {(analysisMode === 'signals' || analysisMode === 'multi' || analysisMode === 'advanced') && divergences.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 }}
+              className="card"
+            >
+              <div className="flex items-center space-x-3 mb-6">
+                <div className="w-8 h-8 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg flex items-center justify-center">
+                  <span className="text-white text-lg">⚡</span>
+                </div>
+                <h2 className="text-xl font-bold text-white">Divergence Analizi</h2>
+                <span className="px-2 py-1 bg-purple-900 text-purple-300 rounded-full text-sm font-medium">
+                  {divergences.length} Sinyal
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {divergences.slice(0, 6).map((div, index) => (
+                  <div
+                    key={index}
+                    className={`p-4 rounded-lg border-2 transition-all hover:scale-[1.02] ${
+                      div.type === 'bullish' ? 'bg-green-900/10 border-green-600/30 hover:border-green-500/50' :
+                      div.type === 'bearish' ? 'bg-red-900/10 border-red-600/30 hover:border-red-500/50' :
+                      div.type === 'hidden-bullish' ? 'bg-emerald-900/10 border-emerald-600/30 hover:border-emerald-500/50' :
+                      'bg-orange-900/10 border-orange-600/30 hover:border-orange-500/50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center space-x-2">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                          div.type === 'bullish' ? 'bg-green-600' :
+                          div.type === 'bearish' ? 'bg-red-600' :
+                          div.type === 'hidden-bullish' ? 'bg-emerald-600' :
+                          'bg-orange-600'
+                        }`}>
+                          {div.type.includes('bullish') ? '📈' : '📉'}
+                        </div>
+                        <div>
+                          <p className={`font-bold text-sm ${
+                            div.type === 'bullish' ? 'text-green-400' :
+                            div.type === 'bearish' ? 'text-red-400' :
+                            div.type === 'hidden-bullish' ? 'text-emerald-400' :
+                            'text-orange-400'
+                          }`}>
+                            {div.type === 'bullish' ? 'BULLISH' :
+                             div.type === 'bearish' ? 'BEARISH' :
+                             div.type === 'hidden-bullish' ? 'HIDDEN BULLISH' :
+                             'HIDDEN BEARISH'} DIVERGENCE
+                          </p>
+                          <p className="text-gray-400 text-xs">{div.indicator} • {div.timeframe}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className={`px-2 py-1 rounded text-xs font-bold ${
+                          div.confidence > 80 ? 'bg-green-900 text-green-300' :
+                          div.confidence > 65 ? 'bg-yellow-900 text-yellow-300' :
+                          'bg-orange-900 text-orange-300'
+                        }`}>
+                          {div.confidence}% güven
+                        </div>
+                        <p className="text-gray-400 text-xs mt-1">
+                          Güç: {div.strength}/100
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="bg-dark-800 rounded p-2 mb-2">
+                      <p className="text-gray-300 text-xs">{div.description}</p>
+                    </div>
+
+                    <div className="flex justify-between text-xs">
+                      <div>
+                        <p className="text-gray-500">Başlangıç</p>
+                        <p className="text-white font-medium">${div.startPoint.price.toFixed(2)}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-gray-500">İndikatör Değişim</p>
+                        <p className={`font-medium ${
+                          div.endPoint.indicatorValue > div.startPoint.indicatorValue ? 'text-green-400' : 'text-red-400'
+                        }`}>
+                          {((div.endPoint.indicatorValue - div.startPoint.indicatorValue) / div.startPoint.indicatorValue * 100).toFixed(1)}%
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-gray-500">Bitiş</p>
+                        <p className="text-white font-medium">${div.endPoint.price.toFixed(2)}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {divergences.length > 6 && (
+                <div className="mt-4 text-center">
+                  <p className="text-gray-400 text-sm">
+                    +{divergences.length - 6} daha fazla divergence bulundu
+                  </p>
+                </div>
+              )}
             </motion.div>
           )}
 
