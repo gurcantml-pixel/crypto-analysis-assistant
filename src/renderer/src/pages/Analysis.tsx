@@ -1184,19 +1184,23 @@ const Analysis: React.FC = () => {
                     <div className="flex justify-between text-xs">
                       <div>
                         <p className="text-gray-500">Başlangıç</p>
-                        <p className="text-white font-medium">${div.startPoint.price.toFixed(2)}</p>
+                        <p className="text-white font-medium">
+                          ${div.startPoint.price < 1 ? div.startPoint.price.toFixed(4) : div.startPoint.price.toFixed(2)}
+                        </p>
                       </div>
                       <div className="text-center">
-                        <p className="text-gray-500">İndikatör Değişim</p>
+                        <p className="text-gray-500">Fiyat Değişim</p>
                         <p className={`font-medium ${
-                          div.endPoint.indicatorValue > div.startPoint.indicatorValue ? 'text-green-400' : 'text-red-400'
+                          div.endPoint.price > div.startPoint.price ? 'text-red-400' : 'text-green-400'
                         }`}>
-                          {((div.endPoint.indicatorValue - div.startPoint.indicatorValue) / div.startPoint.indicatorValue * 100).toFixed(1)}%
+                          {((div.endPoint.price - div.startPoint.price) / div.startPoint.price * 100).toFixed(2)}%
                         </p>
                       </div>
                       <div className="text-right">
                         <p className="text-gray-500">Bitiş</p>
-                        <p className="text-white font-medium">${div.endPoint.price.toFixed(2)}</p>
+                        <p className="text-white font-medium">
+                          ${div.endPoint.price < 1 ? div.endPoint.price.toFixed(4) : div.endPoint.price.toFixed(2)}
+                        </p>
                       </div>
                     </div>
                   </div>
