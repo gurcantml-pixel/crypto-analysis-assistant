@@ -425,21 +425,8 @@ export const usePortfolioStore = create<PortfolioState>((set, get) => ({
           });
           
           if (!trendingData || trendingData.length === 0) {
-            console.warn('⚠️ TradingView returned empty data, trying direct approach...');
-            
-            // Direct TradingView API call dene
-            const directData = await fetchTradingViewDirect();
-            if (directData && directData.length > 0) {
-              console.log('✅ Direct TradingView call successful:', directData.length);
-              const processedFavorites = processTradingViewData(directData);
-              set({ 
-                favoriteCoins: processedFavorites,
-                lastFavoriteCoinsUpdate: now
-              });
-              return;
-            }
-            
-            throw new Error('TradingView API returned no data - trying fallback');
+            // TradingView bazen boş dönebilir, Binance fallback'i kullan
+            throw new Error('TradingView API returned no data - using fallback');
           }
           
           // TradingView verisini FavoriteCoin formatına çevir (HIZLI RSI hesaplama)
@@ -549,7 +536,7 @@ export const usePortfolioStore = create<PortfolioState>((set, get) => ({
         
         // Her 30 saniyede bir TradingView'den analiz yap
         const analysisInterval = setInterval(() => {
-          console.log('� Performing scheduled TradingView analysis...');
+          // Sessizce güncelle (console log yok)
           get().fetchFavoriteCoins();
         }, 30000); // 30 saniye - TradingView için optimize
         
@@ -1194,76 +1181,6 @@ function generateAdvancedSignal(ticker: any, historicalData?: number[]): { signa
   }
   
   return { signal, strength: Math.round(finalStrength), rsi };
-}
-
-// Direct TradingView API call (debugging için)
-async function fetchTradingViewDirect(): Promise<any[]> {
-  try {
-    console.log('🔧 Trying direct TradingView API call...');
-    
-    const payload = {
-      filter: [
-        { left: "type", operation: "equal", right: "crypto" },
-        { left: "subtype", operation: "equal", right: "spot" },
-        { left: "exchange", operation: "equal", right: "BINANCE" }
-      ],
-      columns: [
-        "name", "close", "change", "change_abs", "volume", "market_cap_basic"
-      ],
-      sort: { sortBy: "volume", sortOrder: "desc" },
-      range: [0, 20]
-    };
-    
-    const response = await window.electronAPI.apiRequest('https://scanner.tradingview.com/crypto/scan', {
-      method: 'POST',
-      body: JSON.stringify(payload)
-    });
-    
-    console.log('🔍 Direct TradingView Response:', {
-      ok: response.ok,
-      status: response.status,
-      dataExists: !!response.data,
-      dataType: typeof response.data,
-      hasData: !!response.data?.data,
-      dataLength: response.data?.data?.length
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Direct TradingView failed: ${response.status}`);
-    }
-    
-    return response.data?.data || [];
-    
-  } catch (error) {
-    console.error('❌ Direct TradingView failed:', error);
-    return [];
-  }
-}
-
-// TradingView data processing
-function processTradingViewData(tvData: any[]): FavoriteCoin[] {
-  if (!Array.isArray(tvData) || tvData.length === 0) {
-    console.warn('⚠️ Invalid TradingView data for processing');
-    return [];
-  }
-  
-  return tvData.map((item: any[]) => ({
-    symbol: item[0]?.replace('BINANCE:', '').replace('USDT', '') || 'UNKNOWN',
-    price: item[1] || 0,
-    change24h: item[2] || 0,
-    volume: item[4] || 0,
-    signal: (item[2] > 2 ? 'BUY' : item[2] < -2 ? 'SELL' : 'HOLD') as 'BUY' | 'SELL' | 'HOLD',
-    lastAnalysis: new Date(),
-    logoUrl: `https://assets.coingecko.com/coins/images/1/small/${item[0]?.toLowerCase()}.png`,
-    signalStrength: Math.min(Math.max(Math.abs(item[2] || 0) * 5, 1), 100),
-    high24h: (item[1] || 0) * (1 + Math.abs(item[2] || 0) / 100),
-    low24h: (item[1] || 0) * (1 - Math.abs(item[2] || 0) / 100),
-    pricePosition: item[2] > 0 ? 70 + Math.random() * 30 : Math.random() * 30,
-    trendDirection: (item[2] > 0.5 ? 'UP' : item[2] < -0.5 ? 'DOWN' : 'SIDEWAYS') as 'UP' | 'DOWN' | 'SIDEWAYS',
-    volumeStrength: Math.min((item[4] || 0) / 1000000, 100),
-    rsi: 30 + Math.random() * 40,
-    macd: item[2] > 0 ? Math.random() * 5 : Math.random() * -5
-  })).filter(coin => coin.symbol !== 'UNKNOWN');
 }
 
 // Multi-level fallback handler
