@@ -24,7 +24,8 @@ import { DataValidation } from '../services/dataValidation';
 import { BacktestEngine } from '../services/backtestEngine';
 import { notificationManager } from '../services/notificationManager';
 import { divergenceDetector, Divergence } from '../services/divergenceDetection';
-import { TechnicalIndicators } from '../types';
+import * as VolumeAnalysis from '../services/volumeAnalysis';
+import { TechnicalIndicators, VolumeAnalysisResult } from '../types';
 import AdvancedAnalysisPanel from '../components/AdvancedAnalysisPanel';
 import {
   Chart as ChartJS,
@@ -81,12 +82,13 @@ const Analysis: React.FC = () => {
   const [indicators, setIndicators] = useState<TechnicalIndicators | null>(null);
   const [loading, setLoading] = useState(false);
   const [timeframe, setTimeframe] = useState('1h');
-  const [analysisMode, setAnalysisMode] = useState<'technical' | 'risk' | 'signals' | 'divergence' | 'multi' | 'advanced'>('technical');
+  const [analysisMode, setAnalysisMode] = useState<'technical' | 'risk' | 'signals' | 'divergence' | 'volume' | 'multi' | 'advanced'>('technical');
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'price' | 'change' | 'volume'>('change');
   const [chartData, setChartData] = useState<any>(null);
   const [chartLoading, setChartLoading] = useState(false);
   const [divergences, setDivergences] = useState<Divergence[]>([]);
+  const [volumeAnalysis, setVolumeAnalysis] = useState<VolumeAnalysisResult | null>(null);
   
   // URL'den gelen coin'i hemen set et VE yükle
   React.useEffect(() => {
@@ -423,6 +425,28 @@ const Analysis: React.FC = () => {
           });
         }
         
+        // 🆕 Volume Analysis
+        console.log('📊 Analyzing volume profile...');
+        const volumes = klines.map((kline: any) => parseFloat(kline[5])); // Volume
+        const highs = klines.map((kline: any) => parseFloat(kline[2])); // High
+        const lows = klines.map((kline: any) => parseFloat(kline[3])); // Low
+        const klinesTimestamps = klines.map((kline: any) => new Date(kline[0]));
+        
+        const volumeAnalysisResult = VolumeAnalysis.analyzeVolume(
+          prices,
+          volumes,
+          highs,
+          lows,
+          klinesTimestamps
+        );
+        
+        setVolumeAnalysis(volumeAnalysisResult);
+        console.log(`✅ Volume analysis completed:`, {
+          poc: volumeAnalysisResult.profile.poc.toFixed(2),
+          signal: volumeAnalysisResult.recommendation.signal,
+          confidence: volumeAnalysisResult.recommendation.confidence.toFixed(1)
+        });
+        
         // Chart verilerini hazırla (memoization için stabilize)
         const chartLabels = timestamps.slice(-50);
         const chartPrices = prices.slice(-50);
@@ -515,6 +539,7 @@ const Analysis: React.FC = () => {
     { value: 'risk', label: 'Risk Yönetimi', icon: ShieldExclamationIcon },
     { value: 'signals', label: 'Trading Sinyalleri', icon: BoltIcon },
     { value: 'divergence', label: 'Divergence Analizi', icon: ArrowTrendingUpIcon },
+    { value: 'volume', label: 'Hacim Analizi', icon: ChartBarIcon },
     { value: 'multi', label: 'Çoklu Analiz', icon: EyeIcon },
     { value: 'advanced', label: 'Gelişmiş Analiz', icon: FireIcon },
   ];
@@ -1253,6 +1278,303 @@ const Analysis: React.FC = () => {
                     </div>
                   )}
                 </>
+              )}
+            </motion.div>
+          )}
+
+          {/* 📊 Volume Analysis Section - Feature 2/5 */}
+          {analysisMode === 'volume' && volumeAnalysis && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="card"
+            >
+              <div className="flex items-center space-x-3 mb-6">
+                <ChartBarIcon className="h-6 w-6 text-cyan-400" />
+                <h2 className="text-xl font-bold text-white">Hacim Analizi</h2>
+              </div>
+
+              {/* Overall Recommendation */}
+              <div className={`mb-6 p-6 rounded-xl ${
+                volumeAnalysis.recommendation.signal === 'BUY' 
+                  ? 'bg-gradient-to-r from-green-900/30 to-emerald-900/30 border-2 border-green-500/30'
+                  : volumeAnalysis.recommendation.signal === 'SELL'
+                  ? 'bg-gradient-to-r from-red-900/30 to-rose-900/30 border-2 border-red-500/30'
+                  : 'bg-gradient-to-r from-gray-900/30 to-slate-900/30 border-2 border-gray-500/30'
+              }`}>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-2xl font-bold text-white flex items-center gap-3">
+                    {volumeAnalysis.recommendation.signal === 'BUY' ? '🟢 ALIM SİNYALİ' : 
+                     volumeAnalysis.recommendation.signal === 'SELL' ? '🔴 SATIM SİNYALİ' : 
+                     '🟡 BEKLEME'}
+                  </h3>
+                  <div className={`px-4 py-2 rounded-lg font-bold text-lg ${
+                    volumeAnalysis.recommendation.confidence > 70 ? 'bg-green-500/20 text-green-300' :
+                    volumeAnalysis.recommendation.confidence > 40 ? 'bg-yellow-500/20 text-yellow-300' :
+                    'bg-red-500/20 text-red-300'
+                  }`}>
+                    %{volumeAnalysis.recommendation.confidence.toFixed(0)} Güven
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  {volumeAnalysis.recommendation.reasons.map((reason, idx) => (
+                    <p key={idx} className="text-gray-300 flex items-start gap-2">
+                      <span className="text-cyan-400">•</span>
+                      <span>{reason}</span>
+                    </p>
+                  ))}
+                </div>
+              </div>
+
+              {/* Volume Profile */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+                <div className="bg-gradient-to-br from-cyan-900/20 to-blue-900/20 border border-cyan-600/30 rounded-xl p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-cyan-400 font-bold text-lg">POC (Point of Control)</h3>
+                    <ChartBarIcon className="h-6 w-6 text-cyan-400" />
+                  </div>
+                  <p className="text-3xl font-bold text-white mb-2">
+                    ${volumeAnalysis.profile.poc < 1 
+                      ? volumeAnalysis.profile.poc.toFixed(4) 
+                      : volumeAnalysis.profile.poc.toFixed(2)}
+                  </p>
+                  <p className="text-gray-400 text-sm">En yüksek hacimli fiyat seviyesi</p>
+                  <div className="mt-4 pt-4 border-t border-cyan-600/20">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-400">Mevcut Fiyat:</span>
+                      <span className="text-white font-medium">
+                        ${currentCoin?.price.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm mt-1">
+                      <span className="text-gray-400">Fark:</span>
+                      <span className={currentCoin && currentCoin.price < volumeAnalysis.profile.poc ? 'text-green-400' : 'text-red-400'}>
+                        {currentCoin && ((currentCoin.price - volumeAnalysis.profile.poc) / volumeAnalysis.profile.poc * 100).toFixed(2)}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-gradient-to-br from-green-900/20 to-emerald-900/20 border border-green-600/30 rounded-xl p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-green-400 font-bold text-lg">VAH (Value Area High)</h3>
+                    <ArrowTrendingUpIcon className="h-6 w-6 text-green-400" />
+                  </div>
+                  <p className="text-3xl font-bold text-white mb-2">
+                    ${volumeAnalysis.profile.vah < 1 
+                      ? volumeAnalysis.profile.vah.toFixed(4) 
+                      : volumeAnalysis.profile.vah.toFixed(2)}
+                  </p>
+                  <p className="text-gray-400 text-sm">Üst %70 hacim sınırı (direnç)</p>
+                </div>
+
+                <div className="bg-gradient-to-br from-red-900/20 to-rose-900/20 border border-red-600/30 rounded-xl p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-red-400 font-bold text-lg">VAL (Value Area Low)</h3>
+                    <ArrowTrendingDownIcon className="h-6 w-6 text-red-400" />
+                  </div>
+                  <p className="text-3xl font-bold text-white mb-2">
+                    ${volumeAnalysis.profile.val < 1 
+                      ? volumeAnalysis.profile.val.toFixed(4) 
+                      : volumeAnalysis.profile.val.toFixed(2)}
+                  </p>
+                  <p className="text-gray-400 text-sm">Alt %70 hacim sınırı (destek)</p>
+                </div>
+              </div>
+
+              {/* Buy/Sell Pressure */}
+              <div className="bg-gradient-to-r from-purple-900/20 to-pink-900/20 border border-purple-600/30 rounded-xl p-6 mb-6">
+                <h3 className="text-purple-400 font-bold text-lg mb-4 flex items-center gap-2">
+                  <ScaleIcon className="h-5 w-5" />
+                  Alış/Satış Baskısı
+                </h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+                  <div>
+                    <div className="flex justify-between mb-2">
+                      <span className="text-gray-400">Alım Baskısı</span>
+                      <span className="text-green-400 font-bold">
+                        %{volumeAnalysis.pressure.buyPressure.toFixed(1)}
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-800 rounded-full h-3">
+                      <div 
+                        className="bg-gradient-to-r from-green-500 to-emerald-500 h-3 rounded-full transition-all duration-500"
+                        style={{ width: `${volumeAnalysis.pressure.buyPressure}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between mb-2">
+                      <span className="text-gray-400">Satım Baskısı</span>
+                      <span className="text-red-400 font-bold">
+                        %{volumeAnalysis.pressure.sellPressure.toFixed(1)}
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-800 rounded-full h-3">
+                      <div 
+                        className="bg-gradient-to-r from-red-500 to-rose-500 h-3 rounded-full transition-all duration-500"
+                        style={{ width: `${volumeAnalysis.pressure.sellPressure}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4 mt-4">
+                  <div className="bg-purple-900/30 rounded-lg p-3 text-center">
+                    <p className="text-gray-400 text-xs mb-1">Cumulative Delta</p>
+                    <p className={`text-lg font-bold ${volumeAnalysis.pressure.cumulativeDelta > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {volumeAnalysis.pressure.cumulativeDelta > 0 ? '+' : ''}
+                      {(volumeAnalysis.pressure.cumulativeDelta / 1000000).toFixed(2)}M
+                    </p>
+                  </div>
+                  
+                  <div className="bg-purple-900/30 rounded-lg p-3 text-center">
+                    <p className="text-gray-400 text-xs mb-1">Money Flow Index</p>
+                    <p className={`text-lg font-bold ${volumeAnalysis.pressure.mfi > 50 ? 'text-green-400' : 'text-red-400'}`}>
+                      {volumeAnalysis.pressure.mfi.toFixed(1)}
+                    </p>
+                  </div>
+                  
+                  <div className="bg-purple-900/30 rounded-lg p-3 text-center">
+                    <p className="text-gray-400 text-xs mb-1">Baskın Taraf</p>
+                    <p className={`text-sm font-bold ${
+                      volumeAnalysis.pressure.dominantSide === 'BUYERS' ? 'text-green-400' :
+                      volumeAnalysis.pressure.dominantSide === 'SELLERS' ? 'text-red-400' :
+                      'text-yellow-400'
+                    }`}>
+                      {volumeAnalysis.pressure.dominantSide === 'BUYERS' ? '🟢 ALICILAR' :
+                       volumeAnalysis.pressure.dominantSide === 'SELLERS' ? '🔴 SATICILAR' :
+                       '🟡 DENGELİ'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Volume Spikes */}
+              {volumeAnalysis.spikes.length > 0 && (
+                <div className="bg-gradient-to-r from-orange-900/20 to-yellow-900/20 border border-orange-600/30 rounded-xl p-6 mb-6">
+                  <h3 className="text-orange-400 font-bold text-lg mb-4 flex items-center gap-2">
+                    <BoltIcon className="h-5 w-5" />
+                    Hacim Patlamaları (Son {volumeAnalysis.spikes.length})
+                  </h3>
+                  
+                  <div className="space-y-3">
+                    {volumeAnalysis.spikes.slice(0, 5).map((spike, idx) => (
+                      <div key={idx} className="bg-gray-900/50 rounded-lg p-4 flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <span className={`text-2xl ${
+                              spike.type === 'BULLISH' ? '📈' : spike.type === 'BEARISH' ? '📉' : '➡️'
+                            }`}></span>
+                            <span className={`font-bold ${
+                              spike.type === 'BULLISH' ? 'text-green-400' :
+                              spike.type === 'BEARISH' ? 'text-red-400' :
+                              'text-gray-400'
+                            }`}>
+                              {spike.type === 'BULLISH' ? 'Yükseliş' : spike.type === 'BEARISH' ? 'Düşüş' : 'Nötr'}
+                            </span>
+                            <span className="text-gray-400 text-sm">
+                              {new Date(spike.timestamp).toLocaleString('tr-TR')}
+                            </span>
+                          </div>
+                          
+                          <div className="grid grid-cols-3 gap-4 text-sm">
+                            <div>
+                              <span className="text-gray-400">Hacim:</span>
+                              <span className="text-white ml-2 font-medium">
+                                {(spike.volume / 1000000).toFixed(2)}M
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-gray-400">Katı:</span>
+                              <span className="text-orange-400 ml-2 font-bold">
+                                {spike.multiplier.toFixed(1)}x
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-gray-400">Fiyat Değişim:</span>
+                              <span className={`ml-2 font-bold ${spike.priceChange > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                {spike.priceChange > 0 ? '+' : ''}{spike.priceChange.toFixed(2)}%
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className={`ml-4 px-4 py-2 rounded-lg ${
+                          spike.strength > 70 ? 'bg-orange-500/20 text-orange-300' :
+                          spike.strength > 40 ? 'bg-yellow-500/20 text-yellow-300' :
+                          'bg-gray-500/20 text-gray-300'
+                        }`}>
+                          <span className="text-xs">Güç</span>
+                          <p className="text-lg font-bold">{spike.strength.toFixed(0)}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Accumulation/Distribution Zones */}
+              {volumeAnalysis.zones.length > 0 && (
+                <div className="bg-gradient-to-r from-indigo-900/20 to-violet-900/20 border border-indigo-600/30 rounded-xl p-6">
+                  <h3 className="text-indigo-400 font-bold text-lg mb-4 flex items-center gap-2">
+                    <CurrencyDollarIcon className="h-5 w-5" />
+                    Biriktirme/Dağıtım Bölgeleri
+                  </h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {volumeAnalysis.zones.map((zone, idx) => (
+                      <div key={idx} className={`rounded-lg p-4 ${
+                        zone.type === 'ACCUMULATION' 
+                          ? 'bg-gradient-to-br from-green-900/30 to-emerald-900/30 border border-green-500/30'
+                          : 'bg-gradient-to-br from-red-900/30 to-rose-900/30 border border-red-500/30'
+                      }`}>
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className={`font-bold ${zone.type === 'ACCUMULATION' ? 'text-green-400' : 'text-red-400'}`}>
+                            {zone.type === 'ACCUMULATION' ? '🟢 BİRİKTİRME' : '🔴 DAĞITIM'}
+                          </h4>
+                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                            zone.signal === 'BUY' ? 'bg-green-500/20 text-green-300' :
+                            zone.signal === 'SELL' ? 'bg-red-500/20 text-red-300' :
+                            'bg-gray-500/20 text-gray-300'
+                          }`}>
+                            {zone.signal === 'BUY' ? 'AL' : zone.signal === 'SELL' ? 'SAT' : 'BEKLE'}
+                          </span>
+                        </div>
+                        
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Fiyat Aralığı:</span>
+                            <span className="text-white font-medium">
+                              ${zone.priceRange.low.toFixed(2)} - ${zone.priceRange.high.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Hacim:</span>
+                            <span className="text-white font-medium">
+                              {(zone.volume / 1000000).toFixed(2)}M
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Süre:</span>
+                            <span className="text-white font-medium">
+                              {zone.duration} mum
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Güç:</span>
+                            <span className={`font-bold ${zone.strength > 50 ? 'text-green-400' : 'text-yellow-400'}`}>
+                              {zone.strength.toFixed(0)}/100
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
             </motion.div>
           )}

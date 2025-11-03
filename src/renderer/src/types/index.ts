@@ -76,6 +76,63 @@ export interface TechnicalIndicators {
   };
 }
 
+// 📊 Volume Analysis Types (Feature 2/5)
+export interface VolumeProfileLevel {
+  price: number;
+  volume: number;
+  percentage: number;
+}
+
+export interface VolumeProfile {
+  poc: number; // Point of Control
+  vah: number; // Value Area High
+  val: number; // Value Area Low
+  levels: VolumeProfileLevel[];
+  totalVolume: number;
+}
+
+export interface VolumeSpike {
+  timestamp: Date;
+  volume: number;
+  avgVolume: number;
+  multiplier: number;
+  priceChange: number;
+  type: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+  strength: number;
+}
+
+export interface BuySellPressure {
+  cumulativeDelta: number;
+  buyPressure: number;
+  sellPressure: number;
+  dominantSide: 'BUYERS' | 'SELLERS' | 'BALANCED';
+  mfi: number;
+  signal: 'BUY' | 'SELL' | 'HOLD';
+  confidence: number;
+}
+
+export interface AccumulationZone {
+  priceRange: { low: number; high: number };
+  volume: number;
+  duration: number;
+  type: 'ACCUMULATION' | 'DISTRIBUTION';
+  strength: number;
+  obv: number;
+  signal: 'BUY' | 'SELL' | 'HOLD';
+}
+
+export interface VolumeAnalysisResult {
+  profile: VolumeProfile;
+  spikes: VolumeSpike[];
+  pressure: BuySellPressure;
+  zones: AccumulationZone[];
+  recommendation: {
+    signal: 'BUY' | 'SELL' | 'HOLD';
+    confidence: number;
+    reasons: string[];
+  };
+}
+
 export interface NewsItem {
   id: string;
   title: string;
