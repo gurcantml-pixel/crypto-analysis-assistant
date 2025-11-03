@@ -29,7 +29,7 @@ export interface Divergence {
 }
 
 export class DivergenceDetector {
-  private readonly MIN_DIVERGENCE_STRENGTH = 50;
+  private readonly MIN_DIVERGENCE_STRENGTH = 30; // Lowered from 50 to catch more signals
 
   /**
    * Detect all types of divergences
@@ -359,7 +359,7 @@ export class DivergenceDetector {
   /**
    * Find pivot highs (local maxima)
    */
-  private findPivotHighs(data: number[], window: number = 5): number[] {
+  private findPivotHighs(data: number[], window: number = 3): number[] { // Reduced from 5 to 3 for more sensitivity
     const pivots: number[] = [];
 
     for (let i = window; i < data.length - window; i++) {
@@ -384,7 +384,7 @@ export class DivergenceDetector {
   /**
    * Find pivot lows (local minima)
    */
-  private findPivotLows(data: number[], window: number = 5): number[] {
+  private findPivotLows(data: number[], window: number = 3): number[] { // Reduced from 5 to 3 for more sensitivity
     const pivots: number[] = [];
 
     for (let i = window; i < data.length - window; i++) {

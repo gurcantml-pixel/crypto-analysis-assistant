@@ -362,6 +362,8 @@ const Analysis: React.FC = () => {
         
         // 🆕 Divergence Detection
         console.log('🔍 Detecting divergences...');
+        console.log(`📊 Data: ${prices.length} prices, timeframe: ${timeframe}`);
+        
         const rsiValues = prices.map((_, i) => {
           const subset = prices.slice(Math.max(0, i - 14), i + 1);
           if (subset.length < 14) return undefined;
@@ -375,6 +377,8 @@ const Analysis: React.FC = () => {
           return result !== undefined ? result.histogram : undefined;
         }).filter((v): v is number => v !== undefined);
         
+        console.log(`📈 RSI values: ${rsiValues.length}, MACD values: ${macdResults.length}`);
+        
         const detectedDivergences: Divergence[] = [];
         
         // RSI Divergences
@@ -385,6 +389,10 @@ const Analysis: React.FC = () => {
             'RSI',
             timeframe
           );
+          console.log(`🔵 RSI divergences found: ${rsiDivs.length}`);
+          if (rsiDivs.length > 0) {
+            console.log('RSI Divergences:', rsiDivs.map(d => `${d.type} (${d.strength})`));
+          }
           detectedDivergences.push(...rsiDivs);
         }
         
@@ -396,11 +404,15 @@ const Analysis: React.FC = () => {
             'MACD',
             timeframe
           );
+          console.log(`🟢 MACD divergences found: ${macdDivs.length}`);
+          if (macdDivs.length > 0) {
+            console.log('MACD Divergences:', macdDivs.map(d => `${d.type} (${d.strength})`));
+          }
           detectedDivergences.push(...macdDivs);
         }
         
         setDivergences(detectedDivergences);
-        console.log(`✅ Detected ${detectedDivergences.length} divergences`);
+        console.log(`✅ Total divergences detected: ${detectedDivergences.length}`);
         
         if (detectedDivergences.length > 0) {
           const strongestDiv = detectedDivergences[0];
