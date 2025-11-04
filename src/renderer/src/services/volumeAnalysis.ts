@@ -298,8 +298,6 @@ function calculateMFI(
 export function detectAccumulationZones(
   prices: number[],
   volumes: number[],
-  highs: number[],
-  lows: number[],
   minZoneDuration: number = 5
 ): AccumulationZone[] {
   const zones: AccumulationZone[] = [];
@@ -376,7 +374,7 @@ export function analyzeVolume(
   const profile = calculateVolumeProfile(prices, volumes);
   const spikes = detectVolumeSpikes(volumes, prices, timestamps);
   const pressure = calculateBuySellPressure(prices, volumes, highs, lows);
-  const zones = detectAccumulationZones(prices, volumes, highs, lows);
+  const zones = detectAccumulationZones(prices, volumes);
   
   // Generate overall recommendation
   const reasons: string[] = [];

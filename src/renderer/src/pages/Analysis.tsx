@@ -25,6 +25,7 @@ import { BacktestEngine } from '../services/backtestEngine';
 import { notificationManager } from '../services/notificationManager';
 import { divergenceDetector, Divergence } from '../services/divergenceDetection';
 import * as VolumeAnalysis from '../services/volumeAnalysis';
+import VolumeProfileChart from '../components/VolumeProfileChart';
 import { TechnicalIndicators, VolumeAnalysisResult } from '../types';
 import AdvancedAnalysisPanel from '../components/AdvancedAnalysisPanel';
 import {
@@ -1383,7 +1384,12 @@ const Analysis: React.FC = () => {
                 </div>
               </div>
 
-              {/* Buy/Sell Pressure */}
+                {/* Volume Profile Chart */}
+                <div className="mb-6">
+                  <VolumeProfileChart profile={volumeAnalysis.profile} />
+                </div>
+
+                {/* Buy/Sell Pressure */}
               <div className="bg-gradient-to-r from-purple-900/20 to-pink-900/20 border border-purple-600/30 rounded-xl p-6 mb-6">
                 <h3 className="text-purple-400 font-bold text-lg mb-4 flex items-center gap-2">
                   <ScaleIcon className="h-5 w-5" />
