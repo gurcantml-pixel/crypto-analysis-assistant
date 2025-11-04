@@ -27,6 +27,9 @@ const VolumeProfileChart: React.FC<Props> = ({ profile, maxLevels = 30 }) => {
 
   const pocPrice = profile.poc;
 
+  // Responsive bar thickness: fewer levels -> thicker bars, many levels -> thinner bars
+  const computedBarThickness = Math.max(8, Math.min(28, Math.floor(320 / Math.max(1, levels.length))));
+
   const data = {
     labels,
     datasets: [
@@ -35,7 +38,7 @@ const VolumeProfileChart: React.FC<Props> = ({ profile, maxLevels = 30 }) => {
         data: dataValues,
         backgroundColor: levels.map(l => (l.price === pocPrice ? 'rgba(34,197,94,0.9)' : 'rgba(59,130,246,0.7)')),
         borderRadius: 6,
-        barThickness: 12
+        barThickness: computedBarThickness
       }
     ]
   };
@@ -75,7 +78,8 @@ const VolumeProfileChart: React.FC<Props> = ({ profile, maxLevels = 30 }) => {
   };
 
   return (
-    <div className="h-72">
+    // responsive heights: mobile -> smaller, desktop -> larger
+    <div className="h-40 sm:h-56 md:h-72 lg:h-96">
       <Bar data={data} options={options} />
     </div>
   );
