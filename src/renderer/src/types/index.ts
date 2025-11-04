@@ -158,3 +158,76 @@ export interface NewsItem {
     priceChangeAfter24h?: number;
   }[];
 }
+
+// AI Sentiment Result (Feature 3/5)
+export interface AISentimentItem {
+  title: string;
+  sentiment: 'positive' | 'neutral' | 'negative' | string;
+  score: number; // -1.0 .. +1.0
+  short_reason?: string;
+}
+
+export interface AISentimentResult {
+  timestamp: number;
+  items: AISentimentItem[];
+  summary?: string;
+}
+
+// 📊 Decision Engine Types (Deterministic + AI Second Opinion)
+export interface DataQuality {
+  isValid: boolean;
+  confidence: number; // 0-1
+  warnings: string[];
+  metrics: {
+    liquidityScore: number;       // orderbook depth + spread
+    volumeReliability: number;    // 24h volume vs 7d avg
+    priceStability: number;       // volatility/ATR check
+    dataCompleteness: number;     // missing candles check
+  };
+}
+
+export interface EntryExitLevels {
+  entryPrice: number | null;
+  stopLoss: number | null;
+  targets: number[];  // Multiple take-profit targets
+  riskRewardRatio: number;
+}
+
+export interface WaitCondition {
+  condition: string;  // "RSI < 30" | "POC breakout" | etc.
+  description: string;
+  priority: 'high' | 'medium' | 'low';
+}
+
+export interface DecisionResult {
+  verdict: 'BUY' | 'SELL' | 'HOLD';
+  confidence: number; // 0-1
+  score: number; // Internal scoring (-100 to +100)
+  
+  // Entry/Exit info
+  levels?: EntryExitLevels;
+  
+  // Wait conditions (for HOLD)
+  waitFor?: WaitCondition[];
+  
+  // Explainability
+  reasons: string[];
+  risks: string[];
+  
+  // Data quality metadata
+  dataQuality: DataQuality;
+  
+  // Timestamp
+  timestamp: number;
+  timeframe: string;
+}
+
+export interface AIOpinionResult {
+  agreement: 'AGREE' | 'DISAGREE' | 'PARTIAL';
+  verdict: 'BUY' | 'SELL' | 'HOLD';
+  confidence: number;
+  explanation: string;
+  newsImpact?: string;
+  scenarios: string[]; // Alternative scenarios
+  timestamp: number;
+}

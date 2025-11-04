@@ -79,6 +79,81 @@ export class BinanceAPI {
     }
   }
 
+  /**
+   * Get orderbook depth (bid/ask levels) for liquidity analysis
+   * @param symbol Trading pair (e.g., BTCUSDT)
+   * @param limit Number of levels (default 20, max 5000)
+   */
+  async getOrderbook(symbol: string, limit: number = 20): Promise<{
+    bids: [string, string][]; // [price, quantity]
+    asks: [string, string][];
+    spread: number;
+    spreadPercent: number;
+    bidDepth: number;
+    askDepth: number;
+  } | null> {
+    try {
+      const response = await axios.get(
+        `${BINANCE_API_BASE}/depth?symbol=${symbol}&limit=${limit}`
+      );
+      
+      const bids: [string, string][] = response.data.bids;
+      const asks: [string, string][] = response.data.asks;
+      
+      if (bids.length === 0 || asks.length === 0) {
+        return null;
+      }
+      
+      const bestBid = parseFloat(bids[0][0]);
+      const bestAsk = parseFloat(asks[0][0]);
+      const spread = bestAsk - bestBid;
+      const spreadPercent = (spread / bestBid) * 100;
+      
+      // Calculate total depth (volume)
+      const bidDepth = bids.reduce((sum, [, qty]) => sum + parseFloat(qty), 0);
+      const askDepth = asks.reduce((sum, [, qty]) => sum + parseFloat(qty), 0);
+      
+      return {
+        bids,
+        asks,
+        spread,
+        spreadPercent,
+        bidDepth,
+        askDepth
+      };
+    } catch (error) {
+      console.error(`Error fetching orderbook for ${symbol}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Fetch multiple timeframes at once for multi-TF analysis
+   * @param symbol Trading pair
+   * @param timeframes Array of intervals (e.g., ['5m', '1h', '4h'])
+   * @param limit Number of candles per timeframe
+   */
+  async getMultiTimeframeData(
+    symbol: string,
+    timeframes: string[],
+    limit: number = 100
+  ): Promise<{ [timeframe: string]: any[] }> {
+    try {
+      const promises = timeframes.map(tf => this.getKlines(symbol, tf, limit));
+      const results = await Promise.all(promises);
+      
+      const data: { [timeframe: string]: any[] } = {};
+      timeframes.forEach((tf, idx) => {
+        data[tf] = results[idx];
+      });
+      
+      return data;
+    } catch (error) {
+      console.error('Error fetching multi-timeframe data:', error);
+      return {};
+    }
+  }
+
   private formatVolume(volume: number): string {
     if (volume >= 1e9) {
       return `${(volume / 1e9).toFixed(1)}B`;

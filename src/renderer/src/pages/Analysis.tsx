@@ -14,6 +14,7 @@ import {
   TrophyIcon,
   FireIcon,
   EyeIcon,
+  SparklesIcon,
 } from '@heroicons/react/24/outline';
 import { useTradingStore } from '../store/tradingStore';
 import { usePortfolioStore } from '../store/portfolioStore';
@@ -26,8 +27,10 @@ import { notificationManager } from '../services/notificationManager';
 import { divergenceDetector, Divergence } from '../services/divergenceDetection';
 import * as VolumeAnalysis from '../services/volumeAnalysis';
 import VolumeProfileChart from '../components/VolumeProfileChart';
-import { TechnicalIndicators, VolumeAnalysisResult } from '../types';
+import { TechnicalIndicators, VolumeAnalysisResult, DecisionResult } from '../types';
 import AdvancedAnalysisPanel from '../components/AdvancedAnalysisPanel';
+import AIOpinionModal from '../components/AIOpinionModal';
+import * as DecisionEngine from '../services/decisionEngine';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -83,13 +86,16 @@ const Analysis: React.FC = () => {
   const [indicators, setIndicators] = useState<TechnicalIndicators | null>(null);
   const [loading, setLoading] = useState(false);
   const [timeframe, setTimeframe] = useState('1h');
-  const [analysisMode, setAnalysisMode] = useState<'technical' | 'risk' | 'signals' | 'divergence' | 'volume' | 'multi' | 'advanced'>('technical');
+  const [analysisMode, setAnalysisMode] = useState<'technical' | 'risk' | 'signals' | 'divergence' | 'volume' | 'decision' | 'multi' | 'advanced'>('decision');
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'price' | 'change' | 'volume'>('change');
   const [chartData, setChartData] = useState<any>(null);
   const [chartLoading, setChartLoading] = useState(false);
   const [divergences, setDivergences] = useState<Divergence[]>([]);
   const [volumeAnalysis, setVolumeAnalysis] = useState<VolumeAnalysisResult | null>(null);
+  const [decisionResult, setDecisionResult] = useState<DecisionResult | null>(null);
+  const [decisionLoading, setDecisionLoading] = useState(false);
+  const [showAIModal, setShowAIModal] = useState(false);
   
   // URL'den gelen coin'i hemen set et VE yükle
   React.useEffect(() => {
@@ -448,6 +454,46 @@ const Analysis: React.FC = () => {
           confidence: volumeAnalysisResult.recommendation.confidence.toFixed(1)
         });
         
+        // 🎯 Decision Engine Analysis
+        console.log('🎯 Running Decision Engine...');
+        setDecisionLoading(true);
+        
+        try {
+          // Fetch orderbook for liquidity check
+          const orderbook = await binanceAPI.getOrderbook(selectedCoin, 20);
+          
+          // Get 24h volume from current coin
+          const volume24hNum = currentCoin?.volume24h 
+            ? parseFloat(currentCoin.volume24h.replace(/[^0-9.]/g, '')) * 1000000 
+            : volumes.reduce((sum, v) => sum + v, 0);
+          
+          const decisionInput = {
+            symbol: selectedCoin,
+            timeframe,
+            price: prices[prices.length - 1],
+            indicators: calculatedIndicators,
+            divergences: detectedDivergences,
+            volumeAnalysis: volumeAnalysisResult,
+            orderbook: orderbook || undefined,
+            volume24h: volume24hNum,
+            candles: klines
+          };
+          
+          const decision = DecisionEngine.analyzeAndDecide(decisionInput);
+          setDecisionResult(decision);
+          
+          console.log(`✅ Decision Engine completed:`, {
+            verdict: decision.verdict,
+            confidence: (decision.confidence * 100).toFixed(0) + '%',
+            score: decision.score,
+            reasons: decision.reasons.length
+          });
+        } catch (decisionError) {
+          console.error('Decision Engine error:', decisionError);
+        } finally {
+          setDecisionLoading(false);
+        }
+        
         // Chart verilerini hazırla (memoization için stabilize)
         const chartLabels = timestamps.slice(-50);
         const chartPrices = prices.slice(-50);
@@ -536,6 +582,7 @@ const Analysis: React.FC = () => {
   ];
 
   const analysisModes = [
+    { value: 'decision', label: '🎯 Karar Motoru', icon: TrophyIcon },
     { value: 'technical', label: 'Teknik Analiz', icon: ChartBarIcon },
     { value: 'risk', label: 'Risk Yönetimi', icon: ShieldExclamationIcon },
     { value: 'signals', label: 'Trading Sinyalleri', icon: BoltIcon },
@@ -1585,6 +1632,348 @@ const Analysis: React.FC = () => {
             </motion.div>
           )}
 
+          {/* 🎯 Decision Engine Panel */}
+          {analysisMode === 'decision' && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="card"
+            >
+              <div className="flex items-center space-x-3 mb-6">
+                <div className="w-10 h-10 bg-gradient-to-r from-yellow-500 to-orange-500 rounded-xl flex items-center justify-center">
+                  <TrophyIcon className="h-6 w-6 text-white" />
+                </div>
+                <h2 className="text-2xl font-bold text-white">Karar Motoru</h2>
+                {decisionLoading && (
+                  <div className="flex items-center space-x-2">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-yellow-500"></div>
+                    <span className="text-gray-400 text-sm">Analiz ediliyor...</span>
+                  </div>
+                )}
+              </div>
+
+              {!decisionResult && !decisionLoading ? (
+                <div className="text-center py-16">
+                  <TrophyIcon className="h-20 w-20 text-gray-500 mx-auto mb-6" />
+                  <p className="text-gray-400 text-lg mb-2">Karar motoru hazır</p>
+                  <p className="text-gray-500 text-sm mb-6 max-w-md mx-auto">
+                    Bir coin seçin ve herhangi bir timeframe'de analiz başlatın. 
+                    Deterministik karar motoru size net BUY/SELL/HOLD sinyali verecek.
+                  </p>
+                  <div className="flex items-center justify-center space-x-2 text-xs text-gray-500">
+                    <span>✓ Veri kalite kontrolü</span>
+                    <span>•</span>
+                    <span>✓ Multi-indicator scoring</span>
+                    <span>•</span>
+                    <span>✓ Risk yönetimi</span>
+                  </div>
+                </div>
+              ) : decisionResult ? (
+                <>
+                  {/* Main Verdict Card */}
+                  <div className={`mb-8 p-8 rounded-2xl border-4 transition-all ${
+                    decisionResult.verdict === 'BUY'
+                      ? 'bg-gradient-to-br from-green-900/40 to-emerald-900/40 border-green-500/50 shadow-lg shadow-green-500/20'
+                      : decisionResult.verdict === 'SELL'
+                      ? 'bg-gradient-to-br from-red-900/40 to-rose-900/40 border-red-500/50 shadow-lg shadow-red-500/20'
+                      : 'bg-gradient-to-br from-gray-900/40 to-slate-900/40 border-gray-500/50 shadow-lg shadow-gray-500/20'
+                  }`}>
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center space-x-4">
+                        <div className={`w-20 h-20 rounded-2xl flex items-center justify-center text-4xl font-bold ${
+                          decisionResult.verdict === 'BUY' ? 'bg-green-600' :
+                          decisionResult.verdict === 'SELL' ? 'bg-red-600' :
+                          'bg-gray-600'
+                        }`}>
+                          {decisionResult.verdict === 'BUY' ? '📈' : decisionResult.verdict === 'SELL' ? '📉' : '⏸️'}
+                        </div>
+                        <div>
+                          <h3 className={`text-4xl font-black ${
+                            decisionResult.verdict === 'BUY' ? 'text-green-400' :
+                            decisionResult.verdict === 'SELL' ? 'text-red-400' :
+                            'text-gray-400'
+                          }`}>
+                            {decisionResult.verdict}
+                          </h3>
+                          <p className="text-gray-400 text-sm mt-1">
+                            {decisionResult.timeframe} timeframe • {new Date(decisionResult.timestamp).toLocaleTimeString('tr-TR')}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Confidence Badge */}
+                      <div className="text-right">
+                        <div className={`inline-block px-6 py-3 rounded-xl text-2xl font-bold ${
+                          decisionResult.confidence > 0.75 ? 'bg-green-500/30 text-green-300 ring-2 ring-green-400' :
+                          decisionResult.confidence > 0.5 ? 'bg-yellow-500/30 text-yellow-300 ring-2 ring-yellow-400' :
+                          'bg-orange-500/30 text-orange-300 ring-2 ring-orange-400'
+                        }`}>
+                          {(decisionResult.confidence * 100).toFixed(0)}%
+                        </div>
+                        <p className="text-gray-400 text-xs mt-2">Güven Skoru</p>
+                      </div>
+                    </div>
+
+                    {/* Data Quality Warning */}
+                    {(!decisionResult.dataQuality.isValid || decisionResult.dataQuality.warnings.length > 0) && (
+                      <div className="mb-4 p-4 bg-yellow-900/30 border border-yellow-600/30 rounded-lg">
+                        <p className="text-yellow-400 font-medium mb-2 flex items-center">
+                          <ExclamationTriangleIcon className="h-5 w-5 mr-2" />
+                          Veri Kalitesi Uyarıları
+                        </p>
+                        <ul className="text-yellow-300 text-sm space-y-1">
+                          {decisionResult.dataQuality.warnings.map((warning, idx) => (
+                            <li key={idx}>• {warning}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Score Display */}
+                    <div className="mb-6">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-gray-400 text-sm">Internal Score</span>
+                        <span className="text-white font-bold">{decisionResult.score.toFixed(0)} / 100</span>
+                      </div>
+                      <div className="w-full bg-gray-800 rounded-full h-4 relative overflow-hidden">
+                        <div
+                          className={`h-4 rounded-full transition-all duration-1000 ${
+                            decisionResult.score >= 70 ? 'bg-gradient-to-r from-green-500 to-emerald-500' :
+                            decisionResult.score <= -70 ? 'bg-gradient-to-r from-red-500 to-rose-500' :
+                            'bg-gradient-to-r from-gray-500 to-slate-500'
+                          }`}
+                          style={{ 
+                            width: `${Math.abs(decisionResult.score)}%`,
+                            marginLeft: decisionResult.score < 0 ? '50%' : '0',
+                            marginRight: decisionResult.score > 0 ? '50%' : '0'
+                          }}
+                        ></div>
+                        <div className="absolute top-0 left-1/2 w-0.5 h-4 bg-white/50"></div>
+                      </div>
+                      <div className="flex justify-between text-xs text-gray-500 mt-1">
+                        <span>SELL (-100)</span>
+                        <span>HOLD (0)</span>
+                        <span>BUY (+100)</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Entry/Exit Levels (for BUY/SELL) */}
+                  {decisionResult.verdict !== 'HOLD' && decisionResult.levels && (
+                    <div className="mb-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <div className="bg-blue-900/20 border border-blue-600/30 rounded-xl p-5">
+                        <div className="flex items-center space-x-2 mb-3">
+                          <ArrowTrendingUpIcon className="h-5 w-5 text-blue-400" />
+                          <span className="text-blue-400 font-medium text-sm">Giriş Fiyatı</span>
+                        </div>
+                        <p className="text-white text-2xl font-bold">
+                          ${decisionResult.levels.entryPrice?.toFixed(currentCoin && currentCoin.price < 1 ? 4 : 2)}
+                        </p>
+                        <p className="text-gray-400 text-xs mt-1">Limit order önerisi</p>
+                      </div>
+
+                      <div className="bg-red-900/20 border border-red-600/30 rounded-xl p-5">
+                        <div className="flex items-center space-x-2 mb-3">
+                          <ShieldExclamationIcon className="h-5 w-5 text-red-400" />
+                          <span className="text-red-400 font-medium text-sm">Stop Loss</span>
+                        </div>
+                        <p className="text-white text-2xl font-bold">
+                          ${decisionResult.levels.stopLoss?.toFixed(currentCoin && currentCoin.price < 1 ? 4 : 2)}
+                        </p>
+                        <p className="text-gray-400 text-xs mt-1">
+                          {decisionResult.levels.entryPrice && decisionResult.levels.stopLoss 
+                            ? `${(Math.abs((decisionResult.levels.stopLoss - decisionResult.levels.entryPrice) / decisionResult.levels.entryPrice) * 100).toFixed(1)}% risk`
+                            : 'Risk seviyesi'
+                          }
+                        </p>
+                      </div>
+
+                      <div className="bg-green-900/20 border border-green-600/30 rounded-xl p-5">
+                        <div className="flex items-center space-x-2 mb-3">
+                          <TrophyIcon className="h-5 w-5 text-green-400" />
+                          <span className="text-green-400 font-medium text-sm">Hedefler</span>
+                        </div>
+                        <div className="space-y-1">
+                          {decisionResult.levels.targets.map((target, idx) => (
+                            <p key={idx} className="text-white font-medium text-sm">
+                              T{idx + 1}: ${target.toFixed(currentCoin && currentCoin.price < 1 ? 4 : 2)}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="bg-purple-900/20 border border-purple-600/30 rounded-xl p-5">
+                        <div className="flex items-center space-x-2 mb-3">
+                          <ScaleIcon className="h-5 w-5 text-purple-400" />
+                          <span className="text-purple-400 font-medium text-sm">Risk/Ödül</span>
+                        </div>
+                        <p className="text-white text-3xl font-bold">
+                          1:{decisionResult.levels.riskRewardRatio.toFixed(1)}
+                        </p>
+                        <p className="text-gray-400 text-xs mt-1">Optimal oran</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Wait Conditions (for HOLD) */}
+                  {decisionResult.verdict === 'HOLD' && decisionResult.waitFor && decisionResult.waitFor.length > 0 && (
+                    <div className="mb-8 bg-yellow-900/20 border-2 border-yellow-600/30 rounded-xl p-6">
+                      <h4 className="text-yellow-400 font-bold text-lg mb-4 flex items-center">
+                        <ExclamationTriangleIcon className="h-6 w-6 mr-2" />
+                        Neyi Beklemelisiniz?
+                      </h4>
+                      <div className="space-y-3">
+                        {decisionResult.waitFor.map((condition, idx) => (
+                          <div key={idx} className="flex items-start space-x-3">
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold ${
+                              condition.priority === 'high' ? 'bg-red-600 text-white' :
+                              condition.priority === 'medium' ? 'bg-yellow-600 text-white' :
+                              'bg-gray-600 text-white'
+                            }`}>
+                              {idx + 1}
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-white font-medium">{condition.condition}</p>
+                              <p className="text-gray-400 text-sm mt-1">{condition.description}</p>
+                            </div>
+                            <span className={`px-2 py-1 rounded text-xs font-bold ${
+                              condition.priority === 'high' ? 'bg-red-500/20 text-red-300' :
+                              condition.priority === 'medium' ? 'bg-yellow-500/20 text-yellow-300' :
+                              'bg-gray-500/20 text-gray-300'
+                            }`}>
+                              {condition.priority.toUpperCase()}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Reasons */}
+                  <div className="mb-6">
+                    <details open>
+                      <summary className="text-white font-bold text-lg mb-4 cursor-pointer hover:text-primary-400 transition-colors flex items-center">
+                        <ChartBarIcon className="h-5 w-5 mr-2" />
+                        Kararın Nedenleri ({decisionResult.reasons.length})
+                      </summary>
+                      <div className="bg-dark-800 rounded-xl p-5 space-y-3">
+                        {decisionResult.reasons.map((reason, idx) => (
+                          <div key={idx} className="flex items-start space-x-3">
+                            <span className="text-green-400 font-bold text-lg">✓</span>
+                            <p className="text-gray-300 flex-1">{reason}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  </div>
+
+                  {/* Risks */}
+                  {decisionResult.risks.length > 0 && (
+                    <div className="mb-6">
+                      <details>
+                        <summary className="text-white font-bold text-lg mb-4 cursor-pointer hover:text-red-400 transition-colors flex items-center">
+                          <ExclamationTriangleIcon className="h-5 w-5 mr-2" />
+                          Riskler ({decisionResult.risks.length})
+                        </summary>
+                        <div className="bg-dark-800 rounded-xl p-5 space-y-3">
+                          {decisionResult.risks.map((risk, idx) => (
+                            <div key={idx} className="flex items-start space-x-3">
+                              <span className="text-red-400 font-bold text-lg">⚠</span>
+                              <p className="text-gray-300 flex-1">{risk}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    </div>
+                  )}
+
+                  {/* Data Quality Metrics */}
+                  <div className="bg-dark-800 rounded-xl p-5">
+                    <h4 className="text-gray-400 font-medium text-sm mb-4">Veri Kalitesi Metrikleri</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div>
+                        <p className="text-gray-500 text-xs mb-1">Likidite</p>
+                        <div className="flex items-center space-x-2">
+                          <div className="flex-1 bg-gray-700 rounded-full h-2">
+                            <div 
+                              className="bg-blue-500 h-2 rounded-full"
+                              style={{ width: `${decisionResult.dataQuality.metrics.liquidityScore * 100}%` }}
+                            ></div>
+                          </div>
+                          <span className="text-white text-xs font-bold">
+                            {(decisionResult.dataQuality.metrics.liquidityScore * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-gray-500 text-xs mb-1">Hacim Güvenilirliği</p>
+                        <div className="flex items-center space-x-2">
+                          <div className="flex-1 bg-gray-700 rounded-full h-2">
+                            <div 
+                              className="bg-green-500 h-2 rounded-full"
+                              style={{ width: `${decisionResult.dataQuality.metrics.volumeReliability * 100}%` }}
+                            ></div>
+                          </div>
+                          <span className="text-white text-xs font-bold">
+                            {(decisionResult.dataQuality.metrics.volumeReliability * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-gray-500 text-xs mb-1">Fiyat Stabilite</p>
+                        <div className="flex items-center space-x-2">
+                          <div className="flex-1 bg-gray-700 rounded-full h-2">
+                            <div 
+                              className="bg-yellow-500 h-2 rounded-full"
+                              style={{ width: `${decisionResult.dataQuality.metrics.priceStability * 100}%` }}
+                            ></div>
+                          </div>
+                          <span className="text-white text-xs font-bold">
+                            {(decisionResult.dataQuality.metrics.priceStability * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-gray-500 text-xs mb-1">Veri Tamlığı</p>
+                        <div className="flex items-center space-x-2">
+                          <div className="flex-1 bg-gray-700 rounded-full h-2">
+                            <div 
+                              className="bg-purple-500 h-2 rounded-full"
+                              style={{ width: `${decisionResult.dataQuality.metrics.dataCompleteness * 100}%` }}
+                            ></div>
+                          </div>
+                          <span className="text-white text-xs font-bold">
+                            {(decisionResult.dataQuality.metrics.dataCompleteness * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* AI Second Opinion Button */}
+                  <div className="mt-8 flex flex-col sm:flex-row gap-4">
+                    <button
+                      onClick={() => setShowAIModal(true)}
+                      className="flex-1 py-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold rounded-xl transition-all duration-200 flex items-center justify-center space-x-2 shadow-lg hover:shadow-purple-500/50"
+                    >
+                      <SparklesIcon className="h-5 w-5" />
+                      <span>🤖 AI'dan İkinci Görüş Al</span>
+                    </button>
+                  </div>
+
+                  {/* Disclaimer */}
+                  <div className="mt-6 p-4 bg-gray-900/50 border border-gray-700 rounded-lg">
+                    <p className="text-gray-400 text-sm leading-relaxed">
+                      ⚠️ <strong>Önemli Uyarı:</strong> Bu karar motoru deterministik bir algoritmadır ve geçmiş verilere dayanır. 
+                      Yatırım kararlarınızı kendi risk değerlendirmenize göre verin. Piyasa koşulları hızla değişebilir.
+                    </p>
+                  </div>
+                </>
+              ) : null}
+            </motion.div>
+          )}
+
           {/* Advanced Analysis Section */}
           {analysisMode === 'advanced' && (
             <motion.div
@@ -1779,6 +2168,17 @@ const Analysis: React.FC = () => {
             <p className="text-gray-500 text-sm">Yukarıdan bir coin seçerek detaylı analizi başlatın</p>
           </div>
         </div>
+      )}
+
+      {/* AI Opinion Modal */}
+      {decisionResult && (
+        <AIOpinionModal
+          isOpen={showAIModal}
+          onClose={() => setShowAIModal(false)}
+          primaryDecision={decisionResult}
+          symbol={selectedCoin || 'BTCUSDT'}
+          allData={{ indicators, divergences, volumeAnalysis }}
+        />
       )}
     </div>
   );
